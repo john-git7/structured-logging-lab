@@ -1,4 +1,6 @@
 const express = require('express');
+const crypto = require('crypto');
+const logger = require('./logger');
 const { connectDb } = require('./db');
 const ordersRouter = require('./routes/orders');
 const { processPayment } = require('./payment');
@@ -8,29 +10,36 @@ const port = 3000;
 
 app.use(express.json());
 
-// Intentionally vague startup logging
-console.log("starting");
+// Add request ID middleware
+app.use((req, res, next) => {
+  req.id = crypto.randomUUID();
+  req.log = logger.child({ reqId: req.id });
+  next();
+});
+
+// Startup logging
+logger.info("starting");
 
 connectDb();
 
 app.get('/', (req, res) => {
-  console.log("ok");
+  req.log.info("ok");
   res.send('Orders API is running');
 });
 
 app.use('/orders', ordersRouter);
 
 app.post('/payments', (req, res) => {
-  console.log("payment started");
-  processPayment();
+  req.log.info("payment started");
+  processPayment(req.log);
   res.send('Payment processed');
 });
 
 app.get('/simulate-error', (req, res) => {
-  console.log("error happened");
+  req.log.error("error happened");
   res.status(500).send('Internal Server Error');
 });
 
 app.listen(port, () => {
-  console.log(`done`);
+  logger.info(`done`, { port });
 });
